@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+      - run: bin/test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: bin/build
+      - name: Smoke test the image
+        run: |
+          version="$(git rev-parse --short HEAD)"
+          docker run -d --name app -p 9292:9292 "devops:$version"
+          for _ in $(seq 1 20); do curl -fs localhost:9292/health && break; sleep 1; done
+          curl -fs localhost:9292/health | grep "\"version\":\"$version\""
+      - name: Push to GitHub Container Registry
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/${{ github.repository }}
+        run: |
+          version="$(git rev-parse --short HEAD)"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker tag "devops:$version" "$IMAGE:$version"
+          docker tag "devops:$version" "$IMAGE:latest"
+          docker push --all-tags "$IMAGE"
