@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+version="$(git rev-parse --short HEAD)"
+if [[ -n "$(git status --porcelain)" ]]; then
+  version="${version}-dirty"
+fi
+
+docker build --build-arg APP_VERSION="$version" -t "devops:$version" -t devops:latest .
+echo "built devops:$version"
