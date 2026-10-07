@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+ruby_version="$(cat .ruby-version)"
+if [[ "$(ruby -e 'print RUBY_VERSION')" != "$ruby_version" ]]; then
+  echo "Need Ruby $ruby_version, found $(ruby -v). Run: mise install" >&2
+  exit 1
+fi
+
+bundle install
